@@ -1,7 +1,6 @@
 import streamlit as st
 import requests
 
-# ================= CONFIG =================
 BACKEND_URL = "https://talentscout-hiring-assistant-z7w3.onrender.com"
 
 st.set_page_config(
@@ -51,7 +50,7 @@ if uploaded_resume and st.session_state.mode is None:
 
             st.session_state.mode = "resume"
             st.session_state.step = "confirm"
-            st.experimental_rerun()
+            st.rerun()
 
         except Exception:
             st.error("Failed to parse resume. Please use manual mode.")
@@ -61,7 +60,7 @@ if st.session_state.mode is None and not uploaded_resume:
     if st.button("Start Manual Application"):
         st.session_state.mode = "manual"
         st.session_state.step = 0
-        st.experimental_rerun()
+        st.rerun()
 
 # ================= MANUAL QUESTIONS =================
 manual_questions = [
@@ -89,7 +88,7 @@ if st.session_state.mode == "manual" and st.session_state.step < len(manual_ques
         st.session_state.data[key] = user_input
         st.session_state.chat.append(("You", user_input))
         st.session_state.step += 1
-        st.experimental_rerun()
+        st.rerun()
 
 # ================= CONFIRMATION =================
 if st.session_state.step == "confirm" or (
@@ -114,7 +113,7 @@ if st.session_state.step == "confirm" or (
             st.session_state.tech_qs = response.json()["questions"]
             st.session_state.tech_index = 0
             st.session_state.step = "tech"
-            st.experimental_rerun()
+            st.rerun()
 
 # ================= TECHNICAL INTERVIEW =================
 if st.session_state.step == "tech":
@@ -131,4 +130,4 @@ if st.session_state.step == "tech":
             st.success("🎉 Interview completed. Thank you!")
             st.stop()
 
-        st.experimental_rerun()
+        st.rerun()
