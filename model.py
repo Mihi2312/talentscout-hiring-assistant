@@ -15,10 +15,10 @@ def generate_questions(tech_stack: str):
     for each technology in this tech stack:
     {tech_stack}
     """
-
-    payload = {"inputs": prompt}
-
-    response = requests.post(API_URL, headers=headers, json=payload)
+    response = requests.post(
+        API_URL,
+        headers=headers,
+        json={"inputs": prompt}
+    )
     result = response.json()
-
     return result[0]["generated_text"]
