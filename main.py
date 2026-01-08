@@ -1,42 +1,35 @@
-from fastapi import FastAPI
-from database import SessionLocal, Candidate
-from model import generate_questions
+import requests
+import os
 
-app = FastAPI(
-    title="TalentScout Hiring Assistant",
-    docs_url="/docs",
-    redoc_url="/redoc"
-)
+HF_API_TOKEN = os.getenv("HF_API_TOKEN")
 
-@app.get("/")
-def root():
-    return {
-        "message": "TalentScout API is running",
-        "status": "healthy"
-    }
+API_URL = "https://api-inference.huggingface.co/models/google/flan-t5-small"
 
-@app.post("/candidate/")
-def create_candidate(data: dict):
-    db = SessionLocal()
+headers = {
+    "Authorization": f"Bearer {HF_API_TOKEN}",
+    "User-Agent": "TalentScout/1.0",
+    "Content-Type": "application/json"
+}
 
-    questions = generate_questions(data["tech_stack"])
-
-    candidate = Candidate(
-        name=data["name"],
-        email=data["email"],
-        phone=data["phone"],
-        experience=data["experience"],
-        position=data["position"],
-        location=data["location"],
-        tech_stack=data["tech_stack"],
-        questions=questions
+def generate_questions(tech_stack: str):
+    prompt = (
+        "Generate 3 technical interview questions for the following tech stack:\n"
+        f"{tech_stack}"
     )
 
-    db.add(candidate)
-    db.commit()
-    db.close()
+    response = requests.post(
+        API_URL,
+        headers=headers,
+        json={"inputs": prompt},
+        timeout=30
+    )
 
-    return {
-        "status": "success",
-        "technical_questions": questions
-    }
+    if response.status_code != 200:
+        return f"Hugging Face error: {response.status_code}"
+
+    data = response.json()
+
+    if isinstance(data, list) and "generated_text" in data[0]:
+        return data[0]["generated_text"]
+
+    return "AI response format error"
