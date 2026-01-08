@@ -1,44 +1,59 @@
-import os
-import requests
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from resume_parser import extract_resume_text
+from model import generate_questions
 
-HF_API_TOKEN = os.getenv("HF_API_TOKEN")
+app = FastAPI(title="TalentScout Hiring Assistant")
 
-API_URL = "https://api-inference.huggingface.co/models/google/flan-t5-small"
+@app.get("/")
+def root():
+    return {"status": "TalentScout API running"}
 
-HEADERS = {
-    "Authorization": f"Bearer {HF_API_TOKEN}",
-    "User-Agent": "TalentScout/1.0",
-    "Content-Type": "application/json"
-}
+@app.post("/analyze")
+async def analyze_candidate(
+    resume: UploadFile = File(None),
+    manual_text: str = Form(None)
+):
+    # ---------------- VALIDATION ----------------
+    if not resume and not manual_text:
+        raise HTTPException(
+            status_code=400,
+            detail="Provide resume or manual input"
+        )
 
-def generate_questions(profile_text: str) -> str:
-    prompt = (
-        "Generate 5 technical interview questions based on this candidate profile:\n"
-        f"{profile_text}"
-    )
-
+    # ---------------- EXTRACT PROFILE TEXT ----------------
     try:
-        response = requests.post(
-            API_URL,
-            headers=HEADERS,
-            json={"inputs": prompt},
-            timeout=30
+        if resume:
+            profile_text = extract_resume_text(
+                resume.file,
+                resume.filename
+            )
+        else:
+            profile_text = manual_text.strip()
+
+        if not profile_text or len(profile_text) < 20:
+            raise ValueError("Extracted profile text is empty or invalid")
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Resume parsing failed: {str(e)}"
         )
 
-        if response.status_code != 200:
-            raise Exception("HF unavailable")
+    # ---------------- GENERATE QUESTIONS ----------------
+    try:
+        questions = generate_questions(profile_text)
 
-        data = response.json()
-        if isinstance(data, list) and "generated_text" in data[0]:
-            return data[0]["generated_text"]
+        if not questions or len(questions) != 3:
+            raise ValueError("AI did not return exactly 3 questions")
 
-    except Exception:
-        return (
-            "AI service temporarily unavailable.\n\n"
-            "Sample Questions:\n"
-            "1. Explain your core technical skills.\n"
-            "2. What projects have you worked on?\n"
-            "3. How do you handle problem-solving?\n"
-            "4. Explain REST APIs.\n"
-            "5. What challenges have you faced?"
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Question generation failed: {str(e)}"
         )
+
+    # ---------------- RESPONSE ----------------
+    return {
+        "status": "success",
+        "questions": questions
+    }
