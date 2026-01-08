@@ -1,15 +1,18 @@
 import streamlit as st
 import requests
 
-API_URL = "https://talentscout-hiring-assistant-zsp8.onrender.com/analyze"
+BACKEND_URL = "https://talentscout-hiring-assistant-z7w3.onrender.com"
 
-st.set_page_config(page_title="TalentScout Hiring Assistant", layout="centered")
+st.set_page_config(page_title="TalentScout Hiring Assistant")
+
 st.title("🤖 TalentScout Hiring Assistant")
 
-mode = st.radio(
-    "How would you like to apply?",
-    ["Upload Resume", "Enter Details Manually"]
+# ➕ Resume Upload
+uploaded_resume = st.file_uploader(
+    "➕ Upload Resume (PDF/DOCX) to auto-fill details",
+    type=["pdf", "docx"]
 )
+
 
 profile_text = None
 resume_file = None
