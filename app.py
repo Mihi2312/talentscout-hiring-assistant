@@ -1,122 +1,137 @@
 import streamlit as st
-import requests
+import re
 
-BACKEND_URL = "https://talentscout-hiring-assistant-z7w3.onrender.com"
+st.set_page_config(page_title="TalentScout Hiring Assistant", page_icon="🤖")
 
-st.set_page_config(
-    page_title="TalentScout AI",
-    page_icon="🤖",
-    layout="centered"
-)
-
-# ---------------- SESSION INIT ----------------
-if "step" not in st.session_state:
-    st.session_state.step = "start"
+# ---------------- INIT ----------------
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+    st.session_state.step = 0
     st.session_state.data = {}
-    st.session_state.tech_qs = []
+    st.session_state.tech_qs = [
+        "Explain the difference between supervised and unsupervised learning.",
+        "How do you use Git and GitHub in a real project?",
+        "Explain vectors and how VectorDBs are used."
+    ]
     st.session_state.tech_index = 0
 
-# ---------------- HEADER ----------------
-st.markdown("""
-<h1 style='text-align:center;'>🤖 TalentScout Hiring Assistant</h1>
-<p style='text-align:center; color:gray'>
-AI-powered screening & technical interview
-</p>
-""", unsafe_allow_html=True)
+# ---------------- HELPERS ----------------
+def bot(msg):
+    st.session_state.messages.append(("bot", msg))
 
-st.divider()
+def user(msg):
+    st.session_state.messages.append(("user", msg))
 
-# ---------------- RESUME UPLOAD ----------------
-uploaded_resume = st.file_uploader(
-    "📎 Upload Resume (optional)",
-    type=["pdf", "docx"]
-)
+def valid_email(email):
+    return re.match(r"[^@]+@[^@]+\.[^@]+", email)
 
-if uploaded_resume and st.session_state.step == "start":
-    with st.spinner("Parsing resume..."):
-        try:
-            res = requests.post(
-                f"{BACKEND_URL}/analyze",
-                files={"resume": uploaded_resume},
-                timeout=60
-            )
+def valid_phone(phone):
+    return phone.isdigit() and len(phone) >= 10
 
-            if res.status_code == 200:
-                st.session_state.data = res.json()
-                st.session_state.step = "confirm"
-                st.rerun()
+# ---------------- START ----------------
+if st.session_state.step == 0:
+    bot("👋 Welcome to **TalentScout Hiring Assistant**!")
+    bot("I’ll collect your details and conduct a short technical interview.")
+    bot("May I know your **full name**?")
+    st.session_state.step = 1
+
+# ---------------- CHAT DISPLAY ----------------
+for role, msg in st.session_state.messages:
+    with st.chat_message("assistant" if role == "bot" else "user"):
+        st.markdown(msg)
+
+# ---------------- INPUT ----------------
+prompt = st.chat_input("Type your response...")
+
+if prompt:
+    user(prompt)
+
+    # -------- Name --------
+    if st.session_state.step == 1:
+        st.session_state.data["name"] = prompt
+        bot("📧 Please provide your **email address**.")
+        st.session_state.step = 2
+
+    # -------- Email --------
+    elif st.session_state.step == 2:
+        if not valid_email(prompt):
+            bot("❌ Invalid email. Please enter a valid email address.")
+        else:
+            st.session_state.data["email"] = prompt
+            bot("📞 Please share your **phone number**.")
+            st.session_state.step = 3
+
+    # -------- Phone --------
+    elif st.session_state.step == 3:
+        if not valid_phone(prompt):
+            bot("❌ Invalid phone number. Please enter at least 10 digits.")
+        else:
+            st.session_state.data["phone"] = prompt
+            bot("💼 How many **years of experience** do you have?")
+            st.session_state.step = 4
+
+    # -------- Experience --------
+    elif st.session_state.step == 4:
+        st.session_state.data["experience"] = prompt
+        bot("🎯 What **role** are you applying for?")
+        st.session_state.step = 5
+
+    # -------- Role --------
+    elif st.session_state.step == 5:
+        st.session_state.data["role"] = prompt
+        bot("📍 Your **location**?")
+        st.session_state.step = 6
+
+    # -------- Location --------
+    elif st.session_state.step == 6:
+        st.session_state.data["location"] = prompt
+        bot("🧰 Please list your **tech stack**.")
+        st.session_state.step = 7
+
+    # -------- Tech Stack --------
+    elif st.session_state.step == 7:
+        st.session_state.data["tech_stack"] = prompt
+
+        bot("✅ **Please confirm your details:**")
+        for k, v in st.session_state.data.items():
+            bot(f"- **{k.capitalize()}**: {v}")
+
+        bot("Type **confirm** to proceed or **edit email / phone / role**")
+        st.session_state.step = 8
+
+    # -------- Confirm / Edit --------
+    elif st.session_state.step == 8:
+        if prompt.lower() == "confirm":
+            bot("🚀 Great! Let’s start the technical interview.")
+            bot(f"**Question 1:** {st.session_state.tech_qs[0]}")
+            st.session_state.step = 9
+        elif prompt.startswith("edit"):
+            field = prompt.replace("edit", "").strip()
+            if field in st.session_state.data:
+                bot(f"✏️ Enter new value for **{field}**")
+                st.session_state.step = ("edit", field)
             else:
-                st.warning("Resume parsing failed. Use manual mode.")
+                bot("❌ Invalid field name.")
+        else:
+            bot("Please type **confirm** or **edit field_name**")
 
-        except Exception:
-            st.warning("Backend unavailable. Use manual mode.")
+    # -------- Edit Mode --------
+    elif isinstance(st.session_state.step, tuple):
+        _, field = st.session_state.step
+        st.session_state.data[field] = prompt
+        bot(f"✅ {field} updated.")
+        bot("Type **confirm** to proceed.")
+        st.session_state.step = 8
 
-# ---------------- MANUAL MODE ----------------
-if st.session_state.step == "start":
-    st.subheader("📝 Manual Application")
+    # -------- Technical Interview --------
+    elif st.session_state.step == 9:
+        st.session_state.tech_index += 1
+        if st.session_state.tech_index < 3:
+            bot(f"**Question {st.session_state.tech_index + 1}:** "
+                f"{st.session_state.tech_qs[st.session_state.tech_index]}")
+        else:
+            bot("📊 **Final Feedback:** Thank you for your responses.")
+            bot("🎉 Your interview is complete. Our team will contact you soon.")
+            st.session_state.step = 10
 
-    with st.form("manual_form", clear_on_submit=False):
-        st.session_state.data["name"] = st.text_input("Full Name")
-        st.session_state.data["email"] = st.text_input("Email")
-        st.session_state.data["phone"] = st.text_input("Phone")
-        st.session_state.data["experience"] = st.text_input("Experience (years)")
-        st.session_state.data["role"] = st.text_input("Role Applied For")
-        st.session_state.data["location"] = st.text_input("Location")
-        st.session_state.data["tech_stack"] = st.text_area("Tech Stack")
-
-        submitted = st.form_submit_button("Continue →")
-
-        if submitted:
-            st.session_state.step = "confirm"
-            st.rerun()
-
-# ---------------- CONFIRM ----------------
-if st.session_state.step == "confirm":
-    st.subheader("✅ Confirm Your Details")
-
-    for k, v in st.session_state.data.items():
-        st.write(f"**{k.capitalize()}**: {v}")
-
-    with st.form("confirm_form"):
-        confirm = st.text_input("Type `confirm` to proceed")
-        ok = st.form_submit_button("Start Interview")
-
-        if ok and confirm.lower() == "confirm":
-            with st.spinner("Preparing interview..."):
-                try:
-                    response = requests.post(
-                        f"{BACKEND_URL}/technical-questions",
-                        params={"tech_stack": st.session_state.data["tech_stack"]},
-                        timeout=30
-                    )
-
-                    if response.status_code == 200 and response.headers.get("content-type","").startswith("application/json"):
-                        st.session_state.tech_qs = response.json().get("questions", [])
-                        st.session_state.step = "tech"
-                        st.rerun()
-                    else:
-                        st.error("Failed to generate questions.")
-
-                except Exception:
-                    st.error("Backend not responding.")
-
-# ---------------- TECH INTERVIEW ----------------
-if st.session_state.step == "tech":
-    st.subheader("💻 Technical Interview")
-
-    if st.session_state.tech_index < len(st.session_state.tech_qs):
-        q = st.session_state.tech_qs[st.session_state.tech_index]
-
-        with st.form("tech_form"):
-            st.markdown(f"**Q{st.session_state.tech_index+1}:** {q}")
-            ans = st.text_area("Your answer", height=120)
-            next_btn = st.form_submit_button("Next")
-
-            if next_btn:
-                st.session_state.tech_index += 1
-                st.rerun()
-
-    else:
-        st.success("🎉 Interview completed!")
-        st.write("Our team will contact you soon.")
-        st.stop()
+    st.rerun()
