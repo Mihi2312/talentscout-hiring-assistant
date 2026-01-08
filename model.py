@@ -1,50 +1,44 @@
-import requests
 import os
+import requests
 
 HF_API_TOKEN = os.getenv("HF_API_TOKEN")
 
 API_URL = "https://api-inference.huggingface.co/models/google/flan-t5-small"
 
-headers = {
+HEADERS = {
     "Authorization": f"Bearer {HF_API_TOKEN}",
     "User-Agent": "TalentScout/1.0",
     "Content-Type": "application/json"
 }
 
-def generate_questions(tech_stack: str):
-    prompt = f"Generate 3 interview questions for {tech_stack}"
-
-    response = requests.post(
-        API_URL,
-        headers=headers,
-        json={"inputs": prompt},
-        timeout=30
+def generate_questions(profile_text: str) -> str:
+    prompt = (
+        "Generate 5 technical interview questions based on this candidate profile:\n"
+        f"{profile_text}"
     )
 
-    # 🔴 If Hugging Face blocks or errors
-    if response.status_code != 200:
-        return (
-            "AI service unavailable right now.\n"
-            "Sample questions:\n"
-            "1. Explain core concepts of Python.\n"
-            "2. What are REST APIs?\n"
-            "3. Explain MVC/MVT architecture."
-        )
-
     try:
-        data = response.json()
-    except Exception:
-        return "AI response parsing failed."
-
-    # 🔴 Handle non-list responses safely
-    if not isinstance(data, list):
-        return (
-            "AI response unavailable.\n"
-            "Sample questions:\n"
-            "1. What is Python?\n"
-            "2. Explain functions.\n"
-            "3. What are lists and dictionaries?"
+        response = requests.post(
+            API_URL,
+            headers=HEADERS,
+            json={"inputs": prompt},
+            timeout=30
         )
 
-    if len(data) == 0 or "generated_text" not in data[0]:
-        return "AI returned
+        if response.status_code != 200:
+            raise Exception("HF unavailable")
+
+        data = response.json()
+        if isinstance(data, list) and "generated_text" in data[0]:
+            return data[0]["generated_text"]
+
+    except Exception:
+        return (
+            "AI service temporarily unavailable.\n\n"
+            "Sample Questions:\n"
+            "1. Explain your core technical skills.\n"
+            "2. What projects have you worked on?\n"
+            "3. How do you handle problem-solving?\n"
+            "4. Explain REST APIs.\n"
+            "5. What challenges have you faced?"
+        )
