@@ -2,7 +2,11 @@ from fastapi import FastAPI
 from database import SessionLocal, Candidate
 from model import generate_questions
 
-app = FastAPI(title="TalentScout Hiring Assistant")
+app = FastAPI(
+    title="TalentScout Hiring Assistant",
+    docs_url="/docs",
+    redoc_url="/redoc"
+)
 
 @app.get("/")
 def root():
