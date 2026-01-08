@@ -1,9 +1,13 @@
-from transformers import pipeline
+import requests
+import os
 
-generator = pipeline(
-    "text2text-generation",
-    model="google/flan-t5-base"
-)
+HF_API_TOKEN = os.getenv("HF_API_TOKEN")
+
+API_URL = "https://api-inference.huggingface.co/models/google/flan-t5-base"
+
+headers = {
+    "Authorization": f"Bearer {HF_API_TOKEN}"
+}
 
 def generate_questions(tech_stack: str):
     prompt = f"""
@@ -11,5 +15,10 @@ def generate_questions(tech_stack: str):
     for each technology in this tech stack:
     {tech_stack}
     """
-    output = generator(prompt, max_length=300)
-    return output[0]["generated_text"]
+
+    payload = {"inputs": prompt}
+
+    response = requests.post(API_URL, headers=headers, json=payload)
+    result = response.json()
+
+    return result[0]["generated_text"]
