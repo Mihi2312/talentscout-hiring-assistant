@@ -4,130 +4,119 @@ import requests
 BACKEND_URL = "https://talentscout-hiring-assistant-z7w3.onrender.com"
 
 st.set_page_config(
-    page_title="TalentScout Hiring Assistant",
+    page_title="TalentScout AI",
+    page_icon="🤖",
     layout="centered"
 )
 
-# ================= SESSION INIT =================
-if "mode" not in st.session_state:
-    st.session_state.mode = None
-    st.session_state.step = 0
+# ---------------- SESSION INIT ----------------
+if "step" not in st.session_state:
+    st.session_state.step = "start"
     st.session_state.data = {}
-    st.session_state.chat = []
     st.session_state.tech_qs = []
     st.session_state.tech_index = 0
 
-# ================= UI HEADER =================
-st.title("🤖 TalentScout Hiring Assistant")
-st.caption("AI-powered screening & technical interview")
+# ---------------- HEADER ----------------
+st.markdown("""
+<h1 style='text-align:center;'>🤖 TalentScout Hiring Assistant</h1>
+<p style='text-align:center; color:gray'>
+AI-powered screening & technical interview
+</p>
+""", unsafe_allow_html=True)
 
-# ================= RESUME UPLOAD =================
+st.divider()
+
+# ---------------- RESUME UPLOAD ----------------
 uploaded_resume = st.file_uploader(
-    "➕ Upload Resume (PDF / DOCX) to auto-fill details",
+    "📎 Upload Resume (optional)",
     type=["pdf", "docx"]
 )
 
-if uploaded_resume and st.session_state.mode is None:
+if uploaded_resume and st.session_state.step == "start":
     with st.spinner("Parsing resume..."):
         try:
-            response = requests.post(
+            res = requests.post(
                 f"{BACKEND_URL}/analyze",
                 files={"resume": uploaded_resume},
                 timeout=60
             )
 
-            parsed = response.json()
+            if res.status_code == 200:
+                st.session_state.data = res.json()
+                st.session_state.step = "confirm"
+                st.rerun()
+            else:
+                st.warning("Resume parsing failed. Use manual mode.")
 
-            st.session_state.data = {
-                "name": parsed.get("name", "Not found"),
-                "email": parsed.get("email", "Not found"),
-                "phone": parsed.get("phone", "Not found"),
-                "experience": parsed.get("experience", "Not found"),
-                "role": parsed.get("role", "Not specified"),
-                "location": parsed.get("location", "Not specified"),
-                "tech_stack": parsed.get("tech_stack", "Not specified")
-            }
+        except Exception:
+            st.warning("Backend unavailable. Use manual mode.")
 
-            st.session_state.mode = "resume"
+# ---------------- MANUAL MODE ----------------
+if st.session_state.step == "start":
+    st.subheader("📝 Manual Application")
+
+    with st.form("manual_form", clear_on_submit=False):
+        st.session_state.data["name"] = st.text_input("Full Name")
+        st.session_state.data["email"] = st.text_input("Email")
+        st.session_state.data["phone"] = st.text_input("Phone")
+        st.session_state.data["experience"] = st.text_input("Experience (years)")
+        st.session_state.data["role"] = st.text_input("Role Applied For")
+        st.session_state.data["location"] = st.text_input("Location")
+        st.session_state.data["tech_stack"] = st.text_area("Tech Stack")
+
+        submitted = st.form_submit_button("Continue →")
+
+        if submitted:
             st.session_state.step = "confirm"
             st.rerun()
 
-        except Exception:
-            st.error("Failed to parse resume. Please use manual mode.")
-
-# ================= MANUAL MODE INIT =================
-if st.session_state.mode is None and not uploaded_resume:
-    if st.button("Start Manual Application"):
-        st.session_state.mode = "manual"
-        st.session_state.step = 0
-        st.rerun()
-
-# ================= MANUAL QUESTIONS =================
-manual_questions = [
-    ("name", "May I know your full name?"),
-    ("email", "Please provide your email address."),
-    ("phone", "Please share your phone number."),
-    ("experience", "How many years of experience do you have?"),
-    ("role", "What position are you applying for?"),
-    ("location", "Where are you located?"),
-    ("tech_stack", "Please list your tech stack.")
-]
-
-# ================= CHAT DISPLAY =================
-for speaker, message in st.session_state.chat:
-    st.markdown(f"**{speaker}:** {message}")
-
-# ================= MANUAL CHAT FLOW =================
-if st.session_state.mode == "manual" and st.session_state.step < len(manual_questions):
-    key, question = manual_questions[st.session_state.step]
-
-    st.markdown(f"**Bot:** {question}")
-    user_input = st.text_input("Your response", key=f"manual_{key}")
-
-    if st.button("Send"):
-        st.session_state.data[key] = user_input
-        st.session_state.chat.append(("You", user_input))
-        st.session_state.step += 1
-        st.rerun()
-
-# ================= CONFIRMATION =================
-if st.session_state.step == "confirm" or (
-    st.session_state.mode == "manual"
-    and st.session_state.step == len(manual_questions)
-):
-    st.subheader("Please confirm your details")
+# ---------------- CONFIRM ----------------
+if st.session_state.step == "confirm":
+    st.subheader("✅ Confirm Your Details")
 
     for k, v in st.session_state.data.items():
         st.write(f"**{k.capitalize()}**: {v}")
 
-    confirm_input = st.text_input("Type `confirm` to proceed")
+    with st.form("confirm_form"):
+        confirm = st.text_input("Type `confirm` to proceed")
+        ok = st.form_submit_button("Start Interview")
 
-    if confirm_input.lower() == "confirm":
-        with st.spinner("Starting technical interview..."):
-            response = requests.post(
-                f"{BACKEND_URL}/technical-questions",
-                params={"tech_stack": st.session_state.data["tech_stack"]},
-                timeout=30
-            )
+        if ok and confirm.lower() == "confirm":
+            with st.spinner("Preparing interview..."):
+                try:
+                    response = requests.post(
+                        f"{BACKEND_URL}/technical-questions",
+                        params={"tech_stack": st.session_state.data["tech_stack"]},
+                        timeout=30
+                    )
 
-            st.session_state.tech_qs = response.json()["questions"]
-            st.session_state.tech_index = 0
-            st.session_state.step = "tech"
-            st.rerun()
+                    if response.status_code == 200 and response.headers.get("content-type","").startswith("application/json"):
+                        st.session_state.tech_qs = response.json().get("questions", [])
+                        st.session_state.step = "tech"
+                        st.rerun()
+                    else:
+                        st.error("Failed to generate questions.")
 
-# ================= TECHNICAL INTERVIEW =================
+                except Exception:
+                    st.error("Backend not responding.")
+
+# ---------------- TECH INTERVIEW ----------------
 if st.session_state.step == "tech":
-    question = st.session_state.tech_qs[st.session_state.tech_index]
-    st.markdown(f"**Question {st.session_state.tech_index + 1}:** {question}")
+    st.subheader("💻 Technical Interview")
 
-    tech_answer = st.text_input("Your answer", key=f"tech_{st.session_state.tech_index}")
+    if st.session_state.tech_index < len(st.session_state.tech_qs):
+        q = st.session_state.tech_qs[st.session_state.tech_index]
 
-    if st.button("Next"):
-        st.session_state.chat.append(("You", tech_answer))
-        st.session_state.tech_index += 1
+        with st.form("tech_form"):
+            st.markdown(f"**Q{st.session_state.tech_index+1}:** {q}")
+            ans = st.text_area("Your answer", height=120)
+            next_btn = st.form_submit_button("Next")
 
-        if st.session_state.tech_index >= 3:
-            st.success("🎉 Interview completed. Thank you!")
-            st.stop()
+            if next_btn:
+                st.session_state.tech_index += 1
+                st.rerun()
 
-        st.rerun()
+    else:
+        st.success("🎉 Interview completed!")
+        st.write("Our team will contact you soon.")
+        st.stop()
