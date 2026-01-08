@@ -10,7 +10,10 @@ app = FastAPI(
 
 @app.get("/")
 def root():
-    return {"message": "TalentScout API is running"}
+    return {
+        "message": "TalentScout API is running",
+        "status": "healthy"
+    }
 
 @app.post("/candidate/")
 def create_candidate(data: dict):
