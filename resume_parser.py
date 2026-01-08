@@ -1,21 +1,27 @@
 from PyPDF2 import PdfReader
 from docx import Document
 
-def parse_pdf(file) -> str:
-    reader = PdfReader(file)
-    text = ""
-    for page in reader.pages:
-        text += page.extract_text() or ""
-    return text
-
-def parse_docx(file) -> str:
-    doc = Document(file)
-    return "\n".join(p.text for p in doc.paragraphs)
-
 def extract_resume_text(file, filename: str) -> str:
-    if filename.endswith(".pdf"):
-        return parse_pdf(file)
-    elif filename.endswith(".docx"):
-        return parse_docx(file)
+    text = ""
+
+    if filename.lower().endswith(".pdf"):
+        reader = PdfReader(file)
+        for page in reader.pages:
+            page_text = page.extract_text()
+            if page_text:
+                text += page_text + "\n"
+
+    elif filename.lower().endswith(".docx"):
+        doc = Document(file)
+        for para in doc.paragraphs:
+            if para.text.strip():
+                text += para.text + "\n"
+
     else:
         raise ValueError("Unsupported file format")
+
+    # 🔴 CRITICAL SAFETY CHECK
+    if len(text.strip()) < 50:
+        raise ValueError("Resume text could not be extracted")
+
+    return text
